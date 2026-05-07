@@ -9,19 +9,16 @@ from utils import get_dataloaders, evaluate
 from train import train_epoch
 from prune import compute_importance_gradients, compute_masks, apply_pruning_mask
 
-def run_pruning_pipeline(baseline_state, method, train_loader, test_loader, criterion, device):
+def run_pruning_pipeline(baseline_state, method, train_loader, test_loader, criterion, device,
+                         prune_iterations=8, prune_percent_per_iter=0.10, retrain_epochs=2, gradient_batches=3):
     print(f"\n{'='*50}")
-    print(f"Starting Iterative Pruning: {method.upper()}")
+    print(f"Pipeline: {method.upper()} | Iters: {prune_iterations} | Retrain: {retrain_epochs} | GradBatches: {gradient_batches}")
     print(f"{'='*50}")
     
     # Reload identically initialized and trained baseline
     model = SimpleCNN().to(device)
     model.load_state_dict(copy.deepcopy(baseline_state))
     optimizer = optim.Adam(model.parameters(), lr=1e-3)
-    
-    prune_iterations = 8
-    prune_percent_per_iter = 0.10
-    retrain_epochs = 2
     
     # Evaluate baseline
     test_loss, test_acc = evaluate(model, test_loader, criterion, device=device)
@@ -41,7 +38,7 @@ def run_pruning_pipeline(baseline_state, method, train_loader, test_loader, crit
         
         # 1. Compute gradients for importance (only needed for gradient method)
         if method == "gradient":
-            compute_importance_gradients(model, train_loader, criterion, num_batches=3, device=device)
+            compute_importance_gradients(model, train_loader, criterion, num_batches=gradient_batches, device=device)
             
         # 2. Calculate importance & get new masks
         masks, total_pruned, total_weights = compute_masks(model, masks, prune_percent=prune_percent_per_iter, method=method)
@@ -52,11 +49,15 @@ def run_pruning_pipeline(baseline_state, method, train_loader, test_loader, crit
         apply_pruning_mask(model, masks)
         
         # 4. Retrain with strict mask enforcement
-        print(f"Retraining for {retrain_epochs} epochs...")
-        for epoch in range(retrain_epochs):
-            train_loss = train_epoch(model, train_loader, optimizer, criterion, masks=masks, device=device)
+        if retrain_epochs > 0:
+            print(f"Retraining for {retrain_epochs} epochs...")
+            for epoch in range(retrain_epochs):
+                train_loss = train_epoch(model, train_loader, optimizer, criterion, masks=masks, device=device)
+                test_loss, test_acc = evaluate(model, test_loader, criterion, device=device)
+                print(f"  Retrain Epoch {epoch+1}/{retrain_epochs} | Train Loss: {train_loss:.4f} | Test Loss: {test_loss:.4f} | Test Acc: {test_acc:.2f}%")
+        else:
+            print("No retraining (0 epochs). Evaluating immediately...")
             test_loss, test_acc = evaluate(model, test_loader, criterion, device=device)
-            print(f"  Retrain Epoch {epoch+1}/{retrain_epochs} | Train Loss: {train_loss:.4f} | Test Loss: {test_loss:.4f} | Test Acc: {test_acc:.2f}%")
             
         history["iteration"].append(iteration)
         history["sparsity"].append(sparsity)
@@ -64,13 +65,22 @@ def run_pruning_pipeline(baseline_state, method, train_loader, test_loader, crit
         history["loss"].append(test_loss)
         
         print(f"End of Iteration {iteration} | Cumulative Pruned: {sparsity:.1f}% | Final Acc: {test_acc:.2f}%")
-        
-        # Stop if accuracy degrades significantly
-        if test_acc < 90.0:
-            print(f"\nAccuracy dropped below 90% ({test_acc:.2f}%). Stopping {method} pruning early.")
-            break
             
     return history
+
+def plot_experiment(results, title, filename):
+    plt.figure(figsize=(10, 6))
+    for method, history in results.items():
+        plt.plot(history["sparsity"], history["accuracy"], marker='o', linestyle='-', label=method.capitalize())
+        
+    plt.title(title)
+    plt.xlabel("% Weights Pruned")
+    plt.ylabel("Test Accuracy (%)")
+    plt.legend()
+    plt.grid(True)
+    plt.savefig(filename)
+    plt.close()
+    print(f"\nPlot saved as {filename}")
 
 def main():
     # Ensure fair comparison with same seed
@@ -96,32 +106,46 @@ def main():
         
     baseline_state = copy.deepcopy(model.state_dict())
     
-    results = {}
-    
+    # ---------------------------------------------------------
+    # EXPERIMENT 1: Push to collapse
+    # 12 iterations, 2 retrain epochs, 3 gradient batches
+    # ---------------------------------------------------------
+    print("\n\n" + "#"*60 + "\n# EXPERIMENT 1: PUSH TO COLLAPSE\n" + "#"*60)
+    res_exp1 = {}
     for method in ["gradient", "random"]:
-        results[method] = run_pruning_pipeline(
-            baseline_state, method, train_loader, test_loader, criterion, device
+        res_exp1[method] = run_pruning_pipeline(
+            baseline_state, method, train_loader, test_loader, criterion, device,
+            prune_iterations=12, retrain_epochs=2, gradient_batches=3
         )
+    plot_experiment(res_exp1, "Experiment 1: Push to Collapse (12 Iters, 2 Retrain)", "collapse_point.png")
 
-    print("\n--- Summary ---")
-    for method, history in results.items():
-        print(f"\n{method.upper()} Method:")
-        for s, a in zip(history["sparsity"], history["accuracy"]):
-            print(f"  Sparsity: {s:.1f}% -> Accuracy: {a:.2f}%")
-        
-    # Plotting
-    plt.figure(figsize=(10, 6))
-    for method, history in results.items():
-        plt.plot(history["sparsity"], history["accuracy"], marker='o', linestyle='-', label=method.capitalize())
-        
-    plt.title("Sparsity vs Accuracy: Gradient vs Random Pruning")
-    plt.xlabel("% Weights Pruned")
-    plt.ylabel("Test Accuracy (%)")
-    plt.axhline(y=90.0, color='r', linestyle='--', label="90% Threshold")
-    plt.legend()
-    plt.grid(True)
-    plt.savefig("sparsity_comparison.png")
-    print("\nPlot saved as sparsity_comparison.png")
+    # ---------------------------------------------------------
+    # EXPERIMENT 2: No retraining
+    # 8 iterations, 0 retrain epochs, 3 gradient batches
+    # ---------------------------------------------------------
+    print("\n\n" + "#"*60 + "\n# EXPERIMENT 2: NO RETRAINING\n" + "#"*60)
+    res_exp2 = {}
+    for method in ["gradient", "random"]:
+        res_exp2[method] = run_pruning_pipeline(
+            baseline_state, method, train_loader, test_loader, criterion, device,
+            prune_iterations=8, retrain_epochs=0, gradient_batches=3
+        )
+    plot_experiment(res_exp2, "Experiment 2: No Retraining (8 Iters, 0 Retrain)", "no_retrain.png")
+
+    # ---------------------------------------------------------
+    # EXPERIMENT 3: Improved gradient estimation
+    # 8 iterations, 2 retrain epochs, 30 gradient batches
+    # ---------------------------------------------------------
+    print("\n\n" + "#"*60 + "\n# EXPERIMENT 3: IMPROVED GRADIENT ESTIMATION\n" + "#"*60)
+    res_exp3 = {}
+    for method in ["gradient", "random"]:
+        res_exp3[method] = run_pruning_pipeline(
+            baseline_state, method, train_loader, test_loader, criterion, device,
+            prune_iterations=8, retrain_epochs=2, gradient_batches=30
+        )
+    plot_experiment(res_exp3, "Experiment 3: Improved Gradient Estimate (30 Batches)", "improved_gradient.png")
+
+    print("\nAll experiments completed successfully!")
 
 if __name__ == "__main__":
     main()

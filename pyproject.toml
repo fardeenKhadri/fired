@@ -1,11 +1,23 @@
 [project]
-name = "mnist-pruning"
+name = "pruning-study"
 version = "0.1.0"
-description = "CNN MNIST pruning using gradient-based importance"
+description = "Experimental study of gradient-based vs random weight pruning"
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
     "torch>=2.0.0",
     "torchvision>=0.15.0",
-    "matplotlib>=3.7.0",
+    "numpy>=1.24.0",
+    "tqdm>=4.65.0"
 ]
+
+[project.optional-dependencies]
+dev = [
+    "ruff>=0.3.0",
+    "black>=24.2.0",
+    "pytest>=8.0.0"
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"

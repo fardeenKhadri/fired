@@ -3,51 +3,27 @@ __pycache__/
 *.py[cod]
 *$py.class
 
-# C extensions
-*.so
+# PyTorch / Models
+*.pth
+*.pt
+*.onnx
 
-# Distribution / packaging
-.Python
-build/
-develop-eggs/
-dist/
-downloads/
-eggs/
-.eggs/
-lib/
-lib64/
-parts/
-sdist/
-var/
-wheels/
-share/python-wheels/
-*.egg-info/
-.installed.cfg
-*.egg
+# Data
+data/
+datasets/
 
 # Virtual Environments
-.env
-.venv
+.venv/
+.uv/
 env/
 venv/
-ENV/
-env.bak/
-venv.bak/
-
-# Project specifics
-data/
-*.png
-*.pdf
-
-# PyTorch
-*.pt
-*.pth
 
 # IDEs and Editors
-.idea/
 .vscode/
+.idea/
 *.swp
 *.swo
 
-# macOS
+# OS generated files
 .DS_Store
+Thumbs.db

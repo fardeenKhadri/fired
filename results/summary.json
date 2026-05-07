@@ -1,0 +1,49 @@
+{
+  "metadata": {
+    "dataset": "MNIST",
+    "baseline_accuracy": 98.85
+  },
+  "experiments": {
+    "push_to_collapse": {
+      "retrain": true,
+      "results": [
+        {
+          "sparsity_percent": 90,
+          "gradient_accuracy": 98.8,
+          "random_accuracy": 98.6
+        },
+        {
+          "sparsity_percent": 100,
+          "gradient_accuracy": 10.0,
+          "random_accuracy": 10.0
+        }
+      ]
+    },
+    "no_retrain": {
+      "retrain": false,
+      "results": [
+        {
+          "sparsity_percent": 50,
+          "gradient_accuracy": 97.5,
+          "random_accuracy": 55.0
+        }
+      ]
+    },
+    "improved_gradient": {
+      "retrain": false,
+      "gradient_accumulation_batches": 30,
+      "results": [
+        {
+          "sparsity_percent": 60,
+          "gradient_accuracy": 96.2,
+          "random_accuracy": 38.4
+        },
+        {
+          "sparsity_percent": 70,
+          "gradient_accuracy": 92.1,
+          "random_accuracy": 21.0
+        }
+      ]
+    }
+  }
+}
