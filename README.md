@@ -52,8 +52,8 @@ This project uses [`uv`](https://github.com/astral-sh/uv) for fast, deterministi
 
 ```bash
 # Clone the repository
-git clone https://github.com/yourusername/pruning-study.git
-cd pruning-study
+git clone https://github.com/fardeenKhadri/fired.git
+cd fired
 
 # Create a virtual environment and install dependencies
 uv venv
